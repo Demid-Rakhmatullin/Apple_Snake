@@ -167,7 +167,7 @@ public class SnakeMovement : MonoBehaviour
             //    Debug.Log("rotate");
             //}
 
-            //commented
+            //качание вперед-назад ("дифферент")
             targetRbRotation = rotationRight * targetRbRotation;
             //rigidbody.rotation = rotationRight * rigidbody.transform.rotation;
 
@@ -249,14 +249,16 @@ public class SnakeMovement : MonoBehaviour
                 //Debug.Log("rotate");
             }
 
+            //качание право-лево ("крен")
             var projectForward = Vector3.ProjectOnPlane(hit.normal, mesh.forward);
             var rotationForward = Quaternion.FromToRotation(mesh.up, projectForward);
             mesh.rotation = Quaternion.RotateTowards(mesh.rotation, rotationForward * mesh.rotation, 50f * Time.fixedDeltaTime);
             //mesh.rotation = rotationForward * mesh.rotation;
             //mesh.rotation = Quaternion.Slerp(mesh.rotation, slopeRotation, 5f * Time.deltaTime);
 
+            
             //иcпользовать размеры коллайдера ?
-            if (hit.distance > 0.6f || hit.distance < 0.2f)
+            if (hit.distance > 0.6f || hit.distance < 0.2f) //"гравитация" - прилипание к поверхности
             {
                 //Debug.Log($"rb pos: {rigidbody.position}, hit pos: {hit.point}, substr: {rigidbody.position - hit.point}");
                 var target = hit.point + (rigidbody.position - hit.point).normalized * 0.55f;
@@ -264,7 +266,7 @@ public class SnakeMovement : MonoBehaviour
                 //rigidbody.position = hit.normal * 0.55f;
                 //Debug.Log("stick to ground");
             }
-            else
+            else //движение вперед
             {               
                 var currMove = rigidbody.position + rigidbody.transform.forward * Time.fixedDeltaTime * speed;
                 //Debug.Log($"pos: {rigidbody.position} curr: {currMove}, prev: {prevMove}");
