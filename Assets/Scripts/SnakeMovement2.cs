@@ -2,17 +2,19 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UIElements;
 using static DebugDrawing;
 
 [RequireComponent(typeof(Rigidbody), typeof(BoxCollider))]
 public class SnakeMovement2 : MonoBehaviour
 {
-    static int APPLE_LAYER;
+    static int GROUND_LAYER;
 
     [SerializeField] float raycastDistance;
     [SerializeField] float gravityForce;
 
-    [SerializeField] Transform appleCenter;
+    [SerializeField] Transform gravityCenter;
     [SerializeField] float moveSpeed;
 
     private Rigidbody _rigidbody;
@@ -32,13 +34,13 @@ public class SnakeMovement2 : MonoBehaviour
 
     private void Awake()
     {
-        APPLE_LAYER = LayerMask.GetMask("Apple");
+        GROUND_LAYER = LayerMask.GetMask("Ground");
         _rigidbody = GetComponent<Rigidbody>();
         _collider = GetComponent<BoxCollider>();
         _groundCheckColliders = new Collider[10];           
     }
 
-    void Start()
+    private void Start()
     {
         _headHalfLength = _collider.size.z / 2f;
         _snakeHalfHeight = _collider.size.y / 2f;
@@ -47,15 +49,15 @@ public class SnakeMovement2 : MonoBehaviour
         _hits = new RaycastHit[10];
         //Debug.Log("Before " + transform.forward);
 
-        var appleDir = GetAppleCenterDirection();
-        if (Physics.Raycast(transform.position, appleDir, out RaycastHit hit,
-            100f, APPLE_LAYER))
+        var gravityDir = GetGravityDirection();
+        if (RaycastGround(transform.position, gravityDir, out RaycastHit hit))
         {
             //Debug.DrawLine(transform.position, hit.point, Color.red, 100f);
             //Debug.Log("Apple found");
 
-            _rigidbody.position = hit.point + GetHeightMargin(appleDir);
-            _rigidbody.rotation = GetSurfaceAligninigRotation(hit.normal) * _rigidbody.rotation;
+            _rigidbody.position = hit.point + GetHeightMargin(gravityDir);
+            //_rigidbody.rotation = GetSurfaceAligninigRotation(hit.normal) * _rigidbody.rotation;
+            _rigidbody.rotation = GetSurfaceAligninigRotation(transform.forward, hit.normal);
 
             //_forwardPlaneNormal = Vector3.Cross(appleDir, transform.forward);
             //if (Mathf.Abs(_forwardPlaneNormal.magnitude) <= Mathf.Epsilon)
@@ -85,40 +87,94 @@ public class SnakeMovement2 : MonoBehaviour
 
         var moveDistance = moveSpeed * Time.fixedDeltaTime;
         var moveDirection = transform.forward;
-        var appleDir = GetAppleCenterDirection();
+        var nextPostion = GetNextPosition(moveDistance, moveDirection);
+        var validatePosition = ValidatePosition(nextPostion, 
+            out Vector3 closestGround);
 
-        const int MAX_ATTEMTS = 90;
-        const float ROTATION_STEP = 1f * Mathf.Deg2Rad;
-        int i = 1;
-        Vector3 nextPosition;
-
-        while (true)
+        if (validatePosition != ValidatePositionResult.Success)
         {
-            var nextPostionRes = ValidateMoveDirection(moveDirection, moveDistance, out nextPosition);
-            Debug.Log("nextPostionRes: " + nextPostionRes);
-            if (nextPostionRes == ValidateDirectionResult.Success)
-                break;
+            const int MAX_ATTEMTS = 90;
+            const float ROTATION_STEP = 1f * Mathf.Deg2Rad;
 
-            var rotationDelta = nextPostionRes switch
+            var gravityDir = GetGravityDirection();
+            var rotationDelta = validatePosition switch
             {
-                ValidateDirectionResult.PathNotClear or ValidateDirectionResult.GroundTooClose
-                    => -ROTATION_STEP,
-                ValidateDirectionResult.GroundNotFound
-                    => ROTATION_STEP,
+                ValidatePositionResult.InsideGround or ValidatePositionResult.GroundTooClose
+                    => -ROTATION_STEP,  //"climb a hill"
+                ValidatePositionResult.GroundNotFound
+                    => ROTATION_STEP,   //"go down the hill"
                 _ => throw new System.InvalidOperationException("Can't process ValidateDirectionResult!")
             };
 
-            moveDirection = Vector3.RotateTowards(moveDirection, appleDir, rotationDelta, 0f);
-
-            i++;
-            if (i > MAX_ATTEMTS)
+            for (int i = 0; i < MAX_ATTEMTS; i++)
             {
-                Debug.LogWarning("Can't find next postion");
-                return;
+                moveDirection = Vector3.RotateTowards(moveDirection, gravityDir, rotationDelta, 0f);
+                nextPostion = GetNextPosition(moveDistance, moveDirection);
+                validatePosition = ValidatePosition(nextPostion, out closestGround);
+                //Debug.Log("Validate: " + validatePosition);
+                if (validatePosition == ValidatePositionResult.Success)
+                    break;
             }
         }
 
-        DrawSphere(nextPosition, 0.1f, Color.red);
+        if (validatePosition != ValidatePositionResult.Success)
+        {
+            Debug.LogWarning("Can't find next postion");
+            return;
+        }
+        //Debug.DrawLine(transform.position, nextPostion, Color.red);
+
+        var groundDir = (closestGround - nextPostion).normalized;
+        if (!RaycastGround(nextPostion, groundDir, out RaycastHit groundHit))
+        {
+            Debug.LogWarning("Can't raycast ground from next postion");
+            return;
+        }
+
+        //var nextRotation = GetSurfaceAligninigRotation(groundHit.normal) * _rigidbody.rotation;
+        var nextRotation = GetSurfaceAligninigRotation(moveDirection, groundHit.normal);
+        _rigidbody.MovePosition(nextPostion);
+        _rigidbody.MoveRotation(nextRotation);
+
+        #region Commented
+
+        //Debug.Log("Validate: " + ValidatePosition(nextPostion));
+        //var appleDir = GetAppleCenterDirection();
+
+        //const int MAX_ATTEMTS = 90;
+        //const float ROTATION_STEP = 1f * Mathf.Deg2Rad;
+        //int i = 1;
+        //Vector3 nextPosition;
+
+        //while (true)
+        //{
+        //    var nextPostionRes = ValidatePosition(moveDirection, moveDistance, out nextPosition);
+        //    Debug.Log("nextPostionRes: " + nextPostionRes);
+        //    if (nextPostionRes == ValidatePositionResult.Success)
+        //        break;
+
+        //    var rotationDelta = nextPostionRes switch
+        //    {
+        //        ValidatePositionResult.PathNotClear or ValidatePositionResult.GroundTooClose
+        //            => -ROTATION_STEP,
+        //        ValidatePositionResult.GroundNotFound
+        //            => ROTATION_STEP,
+        //        _ => throw new System.InvalidOperationException("Can't process ValidateDirectionResult!")
+        //    };
+
+        //    moveDirection = Vector3.RotateTowards(moveDirection, appleDir, rotationDelta, 0f);
+
+        //    i++;
+        //    if (i > MAX_ATTEMTS)
+        //    {
+        //        Debug.LogWarning("Can't find next postion");
+        //        return;
+        //    }
+        //}
+
+        //DrawSphere(nextPosition, 0.1f, Color.red);
+
+        #endregion
 
         #region Commented
 
@@ -204,63 +260,98 @@ public class SnakeMovement2 : MonoBehaviour
         #endregion
     }
 
-    private ValidateDirectionResult ValidateMoveDirection(Vector3 moveDirection, float moveDistance, 
-        out Vector3 validatedNextPosition)
+    private ValidatePositionResult ValidatePosition(Vector3 postion, out Vector3 closestGround)
     {
-        validatedNextPosition = Vector3.zero;
+        closestGround = postion;
 
-        var headForwardPoint = CurrentPostion + transform.forward * _headHalfLength;
-        DrawSphere(headForwardPoint, 0.1f, Color.green);
-        var pathIsClear = !Physics.Raycast(headForwardPoint, moveDirection, out var pathObstacle,
-           moveDistance, APPLE_LAYER);
+        var groundCheck = Physics.OverlapSphereNonAlloc(postion, _snakeHalfHeight + _surfaceSmoothing,
+            _groundCheckColliders, GROUND_LAYER);
 
-        if (pathIsClear)
+        if (groundCheck > 0)
         {
-            var nextPosition = CurrentPostion + moveDistance * moveDirection;
-            //Debug.Log("Draw blue");
-            Debug.DrawLine(headForwardPoint, nextPosition, Color.blue);
-            //DrawSphere(nextPosition, 0.1f, Color.blue);
-            var groundCheck = Physics.OverlapSphereNonAlloc(nextPosition, _snakeHalfHeight + _surfaceSmoothing,
-                _groundCheckColliders, APPLE_LAYER);
-
-            if (groundCheck > 0)
+            for (int i = 0; i < groundCheck; i++)
             {
-                for (int i = 0; i < groundCheck; i++)
-                {
-                    var closestPoint = _groundCheckColliders[i].ClosestPoint(nextPosition);
-                    
-                    if (Vector3.Distance(closestPoint, nextPosition) < _snakeHalfHeight - _surfaceSmoothing)
-                        return ValidateDirectionResult.GroundTooClose;
-                }
+                closestGround = _groundCheckColliders[i].ClosestPoint(postion);
 
-                validatedNextPosition = nextPosition;
-                return ValidateDirectionResult.Success;
+                if (postion.Equals(closestGround))
+                    return ValidatePositionResult.InsideGround;
+
+                if (Vector3.Distance(closestGround, postion) < _snakeHalfHeight - _surfaceSmoothing)
+                    return ValidatePositionResult.GroundTooClose;
             }
 
-            return ValidateDirectionResult.GroundNotFound;
+            return ValidatePositionResult.Success;
         }
-
-        Debug.DrawLine(headForwardPoint, pathObstacle.point, Color.blue);
-        return ValidateDirectionResult.PathNotClear;
+        
+        return ValidatePositionResult.GroundNotFound;
     }
 
-    //private Vector3 Rotate
+    #region Commented
+    //private ValidatePositionResult ValidatePosition(Vector3 moveDirection, float moveDistance, 
+    //    out Vector3 validatedNextPosition)
+    //{
+    //    validatedNextPosition = Vector3.zero;
 
-    private Vector3 GetAppleCenterDirection()
-        => (appleCenter.position - CurrentPostion).normalized;
+    //    //var headForwardPoint = CurrentPostion + transform.forward * _headHalfLength;
+    //    //DrawSphere(headForwardPoint, 0.1f, Color.green);
+    //    //var pathIsClear = !Physics.Raycast(headForwardPoint, moveDirection, out var pathObstacle,
+    //    //   moveDistance, APPLE_LAYER);
+
+    //    //if (pathIsClear)
+    //    //{
+    //        var nextPosition = CurrentPostion + moveDistance * moveDirection;
+    //        //Debug.Log("Draw blue");
+    //        //Debug.DrawLine(headForwardPoint, nextPosition, Color.blue);
+    //        //DrawSphere(nextPosition, 0.1f, Color.blue);
+    //        var groundCheck = Physics.OverlapSphereNonAlloc(nextPosition, _snakeHalfHeight + _surfaceSmoothing,
+    //            _groundCheckColliders, APPLE_LAYER);
+
+    //        if (groundCheck > 0)
+    //        {
+    //            for (int i = 0; i < groundCheck; i++)
+    //            {
+    //                var closestPoint = _groundCheckColliders[i].ClosestPoint(nextPosition);
+
+    //                if (Vector3.Distance(closestPoint, nextPosition) < _snakeHalfHeight - _surfaceSmoothing)
+    //                    return ValidatePositionResult.GroundTooClose;
+    //            }
+
+    //            validatedNextPosition = nextPosition;
+    //            return ValidatePositionResult.Success;
+    //        }
+
+    //        return ValidatePositionResult.GroundNotFound;
+    //   // }
+
+    //    //Debug.DrawLine(headForwardPoint, pathObstacle.point, Color.blue);
+    //   // return ValidateDirectionResult.PathNotClear;
+    //}
+    #endregion
+
+    private Vector3 GetNextPosition(float distance, Vector3 direction)
+        => CurrentPostion + distance * direction;
+
+    private Vector3 GetGravityDirection()
+        => (gravityCenter.position - CurrentPostion).normalized;
+
+    private bool RaycastGround(Vector3 origin, Vector3 direction, out RaycastHit groundHit)
+        => Physics.Raycast(origin, direction, out groundHit, Mathf.Infinity, GROUND_LAYER);
 
     private Vector3 GetHeightMargin(Vector3 centerDirection)
         => -centerDirection * _snakeHalfHeight;
 
-    private Quaternion GetSurfaceAligninigRotation(Vector3 surfaceNormal)
-        => Quaternion.FromToRotation(transform.up, surfaceNormal);
+    private Quaternion GetSurfaceAligninigRotation(Vector3 snakeForward, Vector3 surfaceNormal)
+        => Quaternion.LookRotation(snakeForward, surfaceNormal);
 
-    private enum ValidateDirectionResult
+    //private Quaternion GetSurfaceAligninigRotation(Vector3 surfaceNormal)
+        //=> Quaternion.FromToRotation(transform.up, surfaceNormal);
+
+    private enum ValidatePositionResult
     {
         Success,
-        PathNotClear,
         GroundNotFound,
-        GroundTooClose
+        GroundTooClose,
+        InsideGround
     }
 
 }

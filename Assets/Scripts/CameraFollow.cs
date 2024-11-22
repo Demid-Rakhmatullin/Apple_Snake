@@ -29,7 +29,7 @@ public class CameraFollow : MonoBehaviour
         _currentOrientationAngle = -Vector3.Angle(snake.right, Vector3.right) + initialOrientationAngle;
 
         //followCamera.enabled = false;
-        UpdateCamera(true, false);
+        //UpdateCamera(true, false);
     }
 
     void LateUpdate()
@@ -70,7 +70,7 @@ public class CameraFollow : MonoBehaviour
             }
         }
         //else
-            //UpdateCamera(true, false);
+        //UpdateCamera(true, false);
 
         //var ray = new Ray(apple.position, snake.position - apple.position);
         //var position = ray.direction * (23f + 40f);
