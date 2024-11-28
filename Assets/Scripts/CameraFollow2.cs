@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class CameraFollow2 : MonoBehaviour
@@ -16,9 +17,14 @@ public class CameraFollow2 : MonoBehaviour
         var direction = (snakeHead.position - apple.position).normalized;
         var position = apple.position + direction * 100f;
 
-        transform.SetPositionAndRotation(position, Quaternion.Euler(0f, 0f, 0f));
-        transform.LookAt(snakeHead.position);
-        cameraUp = Vector3.up;
+        transform.position = position;
+
+        var dot1_abs = Mathf.Abs(Vector3.Dot(Vector3.up, direction));
+        var dot2_abs = Mathf.Abs(Vector3.Dot(Vector3.forward, direction));
+        var worldUp = dot1_abs < dot2_abs ? Vector3.up : Vector3.forward;
+
+        transform.LookAt(snakeHead.position, worldUp);
+        cameraUp = transform.up;
     }
 
     void LateUpdate()
@@ -27,12 +33,26 @@ public class CameraFollow2 : MonoBehaviour
         //Debug.DrawLine(apple.position, Vector3.right * 100f, Color.red);
         //Debug.DrawLine(apple.position, Vector3.forward * 100f, Color.blue);
 
-        var direction = (snakeHead.position - apple.position).normalized;
-        var position = apple.position + direction * 100f;
+        var currRight = transform.right;
+        var currDirection = (transform.position - apple.position).normalized;
+        var snakeDirection = (snakeHead.position - apple.position).normalized;
+        var nextPosition = apple.position + snakeDirection * 100f;
+        var adjustCamera = false;
+
+        //var currDirection = (snakeHead.position - apple.position).normalized
+        var proj = Vector3.ProjectOnPlane(snakeDirection, transform.right);
+        var ang = Vector3.Angle(currDirection, proj);
+        if (ang > 0.1f)
+        {
+            //cameraUp = Quaternion.AngleAxis(ang, transform.right) * cameraUp;
+            adjustCamera = true;
+            Debug.Log("ang: " + ang);
+            //Debug.DrawLine(transform.position, transform.position + cameraUp * 30f, Color.red, 10f);
+        }
 
         //transform.position = position; //todo smooth movement?
-        transform.position = Vector3.MoveTowards(transform.position, position, 
-            maxMovementSpeed * Time.deltaTime);
+        transform.position = nextPosition;// Vector3.MoveTowards(transform.position, nextPosition, 
+            //maxMovementSpeed * Time.deltaTime);
 
         //var snakeMovementNormal = Vector3.Cross(appleDir, transform.forward);
         var appleDir = (apple.position - transform.position).normalized;
@@ -66,15 +86,20 @@ public class CameraFollow2 : MonoBehaviour
         //var dotDown = Vector3.Dot(transform.up, -Vector3.up);
         //Debug.Log("dot down: " + dotDown);
 
-        if (Mathf.Abs(Vector3.Dot(transform.up, cameraUp)) < 0.4f)
-        {
-            cameraUp = -cameraUp;
-            Debug.Log("Change up");
-        }
+        //if (Mathf.Abs(Vector3.Dot(transform.up, cameraUp)) < 0.4f)
+        //{
+        //    cameraUp = -cameraUp;
+        //    Debug.Log("Change up");
+        //}
 
         //Debug.Log("min angle: " + MinAngleWorldAxis(transform.up).Item2);
+        //Debug.Log("dot up: " + Vector3.Dot(transform.up, Vector3.up) +
+        //    ", dot down: " + Vector3.Dot(-transform.up, Vector3.down));
 
-        transform.LookAt(snakeHead.position, cameraUp);
+        //if (adjustCamera)
+        //var lookRot = Quaternion.LookRotation(snakeHead.position - transform.position, Vector3.up);
+        //transform.rotation = lookRot;
+        transform.LookAt(snakeHead.position, transform.up);
     }
 
     private (Vector3, string) MinAngleWorldAxis(Vector3 currentAngle)
