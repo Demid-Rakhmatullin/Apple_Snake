@@ -9,13 +9,15 @@ public class CameraFollow2 : MonoBehaviour
     [SerializeField] Transform snakeHead;
     [SerializeField] Transform apple;
     [SerializeField] float maxMovementSpeed = 50f;
+    [SerializeField] float verticalOffset = 100f;
 
     private Vector3 cameraUp;
 
     void Start()
     {
         var direction = (snakeHead.position - apple.position).normalized;
-        var position = apple.position + direction * 100f;
+        var position = apple.position + direction * verticalOffset;
+        //Debug.Log("sum: " + position + ", trans: " + apple.TransformPoint(direction * 100f));
 
         transform.position = position;
 
@@ -36,7 +38,7 @@ public class CameraFollow2 : MonoBehaviour
         var currRight = transform.right;
         var currDirection = (transform.position - apple.position).normalized;
         var snakeDirection = (snakeHead.position - apple.position).normalized;
-        var nextPosition = apple.position + snakeDirection * 100f;
+        var nextPosition = apple.position + snakeDirection * verticalOffset;
         var adjustCamera = false;
 
         //var currDirection = (snakeHead.position - apple.position).normalized
@@ -46,7 +48,7 @@ public class CameraFollow2 : MonoBehaviour
         {
             //cameraUp = Quaternion.AngleAxis(ang, transform.right) * cameraUp;
             adjustCamera = true;
-            Debug.Log("ang: " + ang);
+            //Debug.Log("ang: " + ang);
             //Debug.DrawLine(transform.position, transform.position + cameraUp * 30f, Color.red, 10f);
         }
 
