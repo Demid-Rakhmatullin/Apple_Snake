@@ -34,6 +34,8 @@ public class SnakeMovement2 : MonoBehaviour
     private Collider[] _groundCheckColliders;
     private Vector3 _forwardPlaneNormal;
 
+    [SerializeField] private Rigidbody[] bodyParts;
+
     private RaycastHit[] _hits;
     float time;
 
@@ -87,7 +89,7 @@ public class SnakeMovement2 : MonoBehaviour
             return;
 
         //var moveDirection = transform.forward;
-        var moveDirection = AdjustDirection(transform.forward, snakeController.Input);
+        //var initialDirection = TurnByInput(transform.forward, snakeController.Input);
         //var playerInput = snakeController.Input;
         //if (playerInput != Vector3.zero)
         //{
@@ -101,12 +103,17 @@ public class SnakeMovement2 : MonoBehaviour
         //    }
         //}
 
-        var moveDistance = moveSpeed * Time.fixedDeltaTime;
-        var (nextPostionFound, nextPostion, closestGround) = FindNextPostion(
-            moveDistance, moveDirection);
+        //var moveDistance = moveSpeed * Time.fixedDeltaTime;
+        var (nextPostionFound, nextPostion, moveDirection, closestGround) = FindNextPostion(
+            moveSpeed * Time.fixedDeltaTime, 
+            TurnByInput(transform.forward, snakeController.Input)
+        );
 
         if (!nextPostionFound)
+        {
+            Debug.LogWarning("Can't find next postion");
             return;
+        }
 
         //var nextPostion = GetPotentialPosition(moveDistance, moveDirection);
         //var validatePosition = ValidatePosition(nextPostion,
@@ -152,10 +159,13 @@ public class SnakeMovement2 : MonoBehaviour
             return;
         }
 
+        var targetRotation = GetSurfaceAligningRotation(moveDirection, groundHit.normal);
+        var bodyNextPos = CurrentPostion;
+        var bodyNextRot = _rigidbody.rotation;
+
         _rigidbody.MovePosition(nextPostion);
 
         //var nextRotation = GetSurfaceAligninigRotation(groundHit.normal) * _rigidbody.rotation;
-        var targetRotation = GetSurfaceAligningRotation(moveDirection, groundHit.normal);
 
         //var groundDirN = (closestGroundN - nextPostionN).normalized;
         //RaycastGround(nextPostionN, groundDirN, out RaycastHit groundHitN);
@@ -164,6 +174,16 @@ public class SnakeMovement2 : MonoBehaviour
         _rigidbody.MoveRotation(Quaternion.RotateTowards(_rigidbody.rotation, targetRotation,
             Time.fixedDeltaTime * moveSpeed * surfaceAlignCoefficient));
         //_rigidbody.MoveRotation(targetRotation);
+
+        if (bodyParts != null)
+            foreach (var body in bodyParts)
+            {
+                var (tempPosition, tempRotation) = (body.position, body.rotation);
+                body.MovePosition(bodyNextPos);
+                body.MoveRotation(bodyNextRot);
+                bodyNextPos = tempPosition;
+                bodyNextRot = tempRotation;
+            }
 
         #region Commented
 
@@ -289,7 +309,7 @@ public class SnakeMovement2 : MonoBehaviour
         #endregion
     }
 
-    private Vector3 AdjustDirection(Vector3 forward, Vector3 input)
+    private Vector3 TurnByInput(Vector3 forward, Vector3 input)
     {
         if (input != Vector3.zero)
         {
@@ -305,13 +325,15 @@ public class SnakeMovement2 : MonoBehaviour
         return forward;
     }
 
-    private (bool success, Vector3 nextPostion, Vector3 closestGround) FindNextPostion(
-        float moveDistance, Vector3 moveDirection)
+    private (bool success, Vector3 nextPostion, Vector3 moveDirection, Vector3 closestGround) FindNextPostion(
+        float moveDistance, Vector3 initialDirection)
     {
+        var moveDirection = initialDirection;
         var nextPostion = GetPotentialPosition(moveDistance, moveDirection);
         var validatePosition = ValidatePosition(nextPostion,
             out Vector3 closestGround);
 
+        //rotate move direction upwards or downwards
         if (validatePosition != ValidatePositionResult.Success)
         {
             const int MAX_ATTEMTS = 90;
@@ -339,12 +361,9 @@ public class SnakeMovement2 : MonoBehaviour
         }
 
         if (validatePosition != ValidatePositionResult.Success)
-        {
-            Debug.LogWarning("Can't find next postion");
             return default;
-        }
 
-        return (true, nextPostion, closestGround);
+        return (true, nextPostion, moveDirection, closestGround);
     }
 
     private ValidatePositionResult ValidatePosition(Vector3 postion, out Vector3 closestGround)
