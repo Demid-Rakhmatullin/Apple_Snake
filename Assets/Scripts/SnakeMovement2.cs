@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -35,6 +36,7 @@ public class SnakeMovement2 : MonoBehaviour
     private Vector3 _forwardPlaneNormal;
 
     [SerializeField] private Rigidbody[] bodyParts;
+    [SerializeField] private Transform test;
 
     private RaycastHit[] _hits;
     float time;
@@ -56,10 +58,10 @@ public class SnakeMovement2 : MonoBehaviour
         _surfaceSmoothing = _snakeHalfHeight * 0.2f;
 
         _hits = new RaycastHit[10];
-        //Debug.Log("Before " + transform.forward);
+        //Debug.Log("Before " + transform.position);
 
         var gravityDir = GetGravityDirection();
-        if (RaycastGround(transform.position, gravityDir, out RaycastHit hit))
+        if (RaycastGround(_rigidbody.position, gravityDir, out RaycastHit hit))
         {
             //Debug.DrawLine(transform.position, hit.point, Color.red, 100f);
             //Debug.Log("Apple found");
@@ -67,6 +69,7 @@ public class SnakeMovement2 : MonoBehaviour
             _rigidbody.position = hit.point + (-gravityDir * _snakeHalfHeight);
             //_rigidbody.rotation = GetSurfaceAligninigRotation(hit.normal) * _rigidbody.rotation;
             _rigidbody.rotation = GetSurfaceAligningRotation(transform.forward, hit.normal);
+            //Physics.SyncTransforms();
 
             //_forwardPlaneNormal = Vector3.Cross(appleDir, transform.forward);
             //if (Mathf.Abs(_forwardPlaneNormal.magnitude) <= Mathf.Epsilon)
@@ -75,8 +78,46 @@ public class SnakeMovement2 : MonoBehaviour
             //    return;
             //}
 
+            //var prevPart = transform;
+            //for (int i = 0; i < bodyParts.Length; i++)
+            //{
+            //    Debug.Log(i.ToString());
+            //    Debug.Log("fwd: " + prevPart.forward);
+            //    Debug.Log("pos: " + prevPart.position);
+            //    var (positionSuccess, position, direction, closestGround) = FindNextPostion(
+            //        2f,
+            //        -prevPart.forward
+            //    );
+
+            //    if (!positionSuccess)
+            //    {
+            //        Debug.LogWarning("Can't postion body segments on start");
+            //        return;
+            //    }
+
+            //    var (rotationSuccess, targetRotation) = GetSurfaceAligningRotation(
+            //        -direction, position, closestGround);
+
+            //    if (!rotationSuccess)
+            //    {
+            //        Debug.LogWarning("Can't find ground for body segment on start");
+            //        return;
+            //    }
+
+            //    bodyParts[i].transform.position = position;
+            //    bodyParts[i].transform.rotation = targetRotation;
+            //    prevPart = bodyParts[i].transform;
+            //}
+
             _moving = true;
-            //Debug.Log("After " + transform.forward);
+            //Debug.Log("After " + transform.position);
+
+            //var rb = test.GetComponent<Rigidbody>();
+            //Debug.Log("Before " + test.forward);
+            ////test.position += Vector3.forward;
+            //test.rotation = Quaternion.Euler(Vector3.up * 30f);
+            ////Physics.SyncTransforms();
+            //Debug.Log("After " + test.forward);
         }
         else
             Debug.LogWarning("Apple not found on start!");
@@ -106,7 +147,7 @@ public class SnakeMovement2 : MonoBehaviour
         //var moveDistance = moveSpeed * Time.fixedDeltaTime;
         var (nextPostionFound, nextPostion, moveDirection, closestGround) = FindNextPostion(
             moveSpeed * Time.fixedDeltaTime, 
-            TurnByInput(transform.forward, snakeController.Input)
+            SteerByInput(transform.forward, snakeController.Input)
         );
 
         if (!nextPostionFound)
@@ -152,16 +193,25 @@ public class SnakeMovement2 : MonoBehaviour
         //}
         //Debug.DrawLine(transform.position, nextPostion, Color.red);
 
-        var groundDir = (closestGround - nextPostion).normalized;
-        if (!RaycastGround(nextPostion, groundDir, out RaycastHit groundHit))
+        //var groundDir = (closestGround - nextPostion).normalized;
+        //if (!RaycastGround(nextPostion, groundDir, out RaycastHit groundHit))
+        //{
+        //    Debug.LogWarning("Can't raycast ground from next postion");
+        //    return;
+        //}
+
+        //var targetRotation = GetSurfaceAligningRotation(moveDirection, groundHit.normal);
+        //var bodyNextPos = CurrentPostion;
+        //var bodyNextRot = _rigidbody.rotation;
+
+        var (groundFound, targetRotation) = GetSurfaceAligningRotation(
+            moveDirection, nextPostion, closestGround);
+
+        if (!groundFound)
         {
             Debug.LogWarning("Can't raycast ground from next postion");
             return;
         }
-
-        var targetRotation = GetSurfaceAligningRotation(moveDirection, groundHit.normal);
-        var bodyNextPos = CurrentPostion;
-        var bodyNextRot = _rigidbody.rotation;
 
         _rigidbody.MovePosition(nextPostion);
 
@@ -175,15 +225,15 @@ public class SnakeMovement2 : MonoBehaviour
             Time.fixedDeltaTime * moveSpeed * surfaceAlignCoefficient));
         //_rigidbody.MoveRotation(targetRotation);
 
-        if (bodyParts != null)
-            foreach (var body in bodyParts)
-            {
-                var (tempPosition, tempRotation) = (body.position, body.rotation);
-                body.MovePosition(bodyNextPos);
-                body.MoveRotation(bodyNextRot);
-                bodyNextPos = tempPosition;
-                bodyNextRot = tempRotation;
-            }
+        //if (bodyParts != null)
+        //    foreach (var body in bodyParts)
+        //    {
+        //        var (tempPosition, tempRotation) = (body.position, body.rotation);
+        //        body.MovePosition(bodyNextPos);
+        //        body.MoveRotation(bodyNextRot);
+        //        bodyNextPos = tempPosition;
+        //        bodyNextRot = tempRotation;
+        //    }
 
         #region Commented
 
@@ -309,7 +359,7 @@ public class SnakeMovement2 : MonoBehaviour
         #endregion
     }
 
-    private Vector3 TurnByInput(Vector3 forward, Vector3 input)
+    private Vector3 SteerByInput(Vector3 forward, Vector3 input)
     {
         if (input != Vector3.zero)
         {
@@ -448,15 +498,25 @@ public class SnakeMovement2 : MonoBehaviour
     private Vector3 GetGravityDirection()
         => (gravityCenter.position - CurrentPostion).normalized;
 
-    private bool RaycastGround(Vector3 origin, Vector3 direction, out RaycastHit groundHit)
-        => Physics.Raycast(origin, direction, out groundHit, Mathf.Infinity, GROUND_LAYER);
-
     //private Vector3 GetHeightMargin(Vector3 centerDirection)
     //    => -centerDirection * _snakeHalfHeight;
 
-    private Quaternion GetSurfaceAligningRotation(Vector3 snakeForward, Vector3 surfaceNormal)
-        => Quaternion.LookRotation(snakeForward, surfaceNormal);
+    private (bool success, Quaternion rotation) GetSurfaceAligningRotation(
+        Vector3 forward, Vector3 position, Vector3 surfacePoint)
+    {
+        var surfaceDir = (surfacePoint - position).normalized;
+        if (!RaycastGround(position, surfaceDir, out RaycastHit surfaceHit))
+            return (false, default);
+
+        return (true, GetSurfaceAligningRotation(forward, surfaceHit.normal));
+    }
+
+    private Quaternion GetSurfaceAligningRotation(Vector3 forward, Vector3 surfaceNormal)
+        => Quaternion.LookRotation(forward, surfaceNormal);
 
     //private Quaternion GetSurfaceAligninigRotation(Vector3 surfaceNormal)
         //=> Quaternion.FromToRotation(transform.up, surfaceNormal);
+
+    private bool RaycastGround(Vector3 origin, Vector3 direction, out RaycastHit groundHit)
+        => Physics.Raycast(origin, direction, out groundHit, Mathf.Infinity, GROUND_LAYER);
 }
