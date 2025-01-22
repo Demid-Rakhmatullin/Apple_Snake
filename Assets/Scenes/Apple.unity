@@ -439,9 +439,10 @@ MonoBehaviour:
   gravityForce: 0
   gravityCenter: {fileID: 53415844}
   moveSpeed: 10
-  turningSpeed: 6
+  steeringSpeed: 1
   inputAccuracy: 2
-  surfaceAlignCoefficient: 10
+  surfaceAlignCoefficient: 1
+  slerpCoefficient: 1
   snakeController: {fileID: 292415443}
   bodyParts: []
   test: {fileID: 0}
@@ -1004,6 +1005,11 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!4 &606236269 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e0b2828227a25854e99c9ca7d0b71e86, type: 3}
+  m_PrefabInstance: {fileID: 606236264}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &617008178
 GameObject:
   m_ObjectHideFlags: 0
@@ -1444,6 +1450,11 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!4 &851893465 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e0b2828227a25854e99c9ca7d0b71e86, type: 3}
+  m_PrefabInstance: {fileID: 851893460}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &894903804
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1548,6 +1559,11 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!4 &894903809 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e0b2828227a25854e99c9ca7d0b71e86, type: 3}
+  m_PrefabInstance: {fileID: 894903804}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &928655468
 GameObject:
   m_ObjectHideFlags: 0
@@ -2305,6 +2321,11 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!4 &1367919423 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e0b2828227a25854e99c9ca7d0b71e86, type: 3}
+  m_PrefabInstance: {fileID: 1367919418}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1451385238
 GameObject:
   m_ObjectHideFlags: 0
@@ -2700,18 +2721,19 @@ MonoBehaviour:
   raycastDistance: 10
   gravityForce: 0
   gravityCenter: {fileID: 53415844}
-  moveSpeed: 0
-  turningSpeed: 10
+  moveSpeed: 10
+  steeringSpeed: 10
   inputAccuracy: 2
-  surfaceAlignCoefficient: 10
+  surfaceAlignCoefficient: 1
+  slerpCoefficient: 0.28
   snakeController: {fileID: 1625668726}
   bodyParts:
-  - {fileID: 672759448}
-  - {fileID: 1367919420}
-  - {fileID: 894903806}
-  - {fileID: 606236266}
-  - {fileID: 851893462}
-  - {fileID: 1969371953}
+  - {fileID: 672759447}
+  - {fileID: 1367919423}
+  - {fileID: 894903809}
+  - {fileID: 606236269}
+  - {fileID: 851893465}
+  - {fileID: 1969371956}
   test: {fileID: 672759447}
 --- !u!114 &1625668726
 MonoBehaviour:
@@ -2830,6 +2852,11 @@ Rigidbody:
   m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!4 &1969371956 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: e0b2828227a25854e99c9ca7d0b71e86, type: 3}
+  m_PrefabInstance: {fileID: 1969371951}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1992748551
 GameObject:
   m_ObjectHideFlags: 0
