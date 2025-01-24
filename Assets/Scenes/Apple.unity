@@ -441,7 +441,7 @@ MonoBehaviour:
   moveSpeed: 10
   steeringSpeed: 1
   inputAccuracy: 2
-  surfaceAlignCoefficient: 1
+  groundNormalAlignSpeed: 10
   slerpCoefficient: 1
   snakeController: {fileID: 292415443}
   bodyParts: []
@@ -2721,10 +2721,10 @@ MonoBehaviour:
   raycastDistance: 10
   gravityForce: 0
   gravityCenter: {fileID: 53415844}
-  moveSpeed: 10
-  steeringSpeed: 10
+  moveSpeed: 1
+  steeringSpeed: 5
   inputAccuracy: 2
-  surfaceAlignCoefficient: 1
+  groundNormalAlignSpeed: 10
   slerpCoefficient: 0.28
   snakeController: {fileID: 1625668726}
   bodyParts:

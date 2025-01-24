@@ -18,12 +18,13 @@ public class SnakeMovement2 : MonoBehaviour
     [SerializeField] Transform gravityCenter;
     [SerializeField] float moveSpeed;
     [Tooltip("Angular speed of steering by player input")]
-    [SerializeField] float steeringSpeed = 1f;
+    [SerializeField] float steeringSpeed = 5f;
     [Tooltip("Ignore player input if rotation is less than value (angle in degrees)")]
     [SerializeField] float inputAccuracy = 2f;
     [Tooltip("Coefficient to calculate angular speed of aligning to surface normal depending on move speed")]
-    [SerializeField] float surfaceAlignCoefficient = 1f;
+    [SerializeField] float groundNormalAlignSpeed = 10f;
     [SerializeField] float slerpCoefficient = 1f;
+    [SerializeField] float bodyPartsAngularSpeed = 1f;
     [SerializeField] SnakeController snakeController;
 
     private Rigidbody _rigidbody;
@@ -66,10 +67,9 @@ public class SnakeMovement2 : MonoBehaviour
         {
             //Debug.DrawLine(transform.position, hit.point, Color.red, 100f);
             //Debug.Log("Apple found");
-
-            transform.position = hit.point + (-gravityDir * _snakeHalfHeight);
             //_rigidbody.rotation = GetSurfaceAligninigRotation(hit.normal) * _rigidbody.rotation;
-            transform.rotation = GetSurfaceAligningRotation(transform.forward, hit.normal);
+            transform.SetPositionAndRotation(hit.point + (-gravityDir * _snakeHalfHeight), 
+                AlignToGroundNormal(transform.forward, hit.normal));
 
             //_forwardPlaneNormal = Vector3.Cross(appleDir, transform.forward);
             //if (Mathf.Abs(_forwardPlaneNormal.magnitude) <= Mathf.Epsilon)
@@ -96,10 +96,10 @@ public class SnakeMovement2 : MonoBehaviour
                     return;
                 }
 
-                var (rotationSuccess, targetRotation) = GetSurfaceAligningRotation(
+                var (alignSuccess, targetRotation) = AlignToGroundNormal(
                     -direction, position, closestGround);
 
-                if (!rotationSuccess)
+                if (!alignSuccess)
                 {
                     Debug.LogWarning("Can't find ground for body segment on start");
                     return;
@@ -146,11 +146,27 @@ public class SnakeMovement2 : MonoBehaviour
         //    }
         //}
 
-        var moveDistance = moveSpeed * Time.fixedDeltaTime;
+        Quaternion targetRotation;
+        Vector3 steeredForward;
+
+        var (steered, steerResult) = SteerByInput(transform.forward, snakeController.Input);
+        if (steered)
+        {
+            targetRotation = Quaternion.LookRotation(steerResult, transform.up);
+            steeredForward = steerResult;
+        }
+        else
+        {
+            targetRotation = transform.rotation;
+            steeredForward = transform.forward;
+        }
+
+        //var moveDistance = moveSpeed * Time.fixedDeltaTime;
         var (nextPostionFound, nextPostion, moveDirection, closestGround) = FindNextPostion(
             transform.position,
-            moveDistance, 
-            SteerByInput(transform.forward, snakeController.Input)
+            moveSpeed * Time.fixedDeltaTime,
+            steeredForward
+            //SteerByInput(transform.forward, snakeController.Input)
         );
 
         if (!nextPostionFound)
@@ -207,7 +223,7 @@ public class SnakeMovement2 : MonoBehaviour
         //var bodyNextPos = CurrentPostion;
         //var bodyNextRot = _rigidbody.rotation;
 
-        var (groundFound, targetRotation) = GetSurfaceAligningRotation(
+        var (groundFound, groundNormalRotation) = AlignToGroundNormal(
             moveDirection, nextPostion, closestGround);
 
         if (!groundFound)
@@ -215,6 +231,12 @@ public class SnakeMovement2 : MonoBehaviour
             Debug.LogWarning("Can't raycast ground from next postion");
             return;
         }
+
+        targetRotation = Quaternion.RotateTowards(
+            targetRotation,
+            groundNormalRotation,
+            Time.fixedDeltaTime * moveSpeed * groundNormalAlignSpeed);
+
         //Debug.Log("Before " + _rigidbody.position);
         _rigidbody.MovePosition(nextPostion);
         // Debug.Log("After " + _rigidbody.position);
@@ -224,15 +246,18 @@ public class SnakeMovement2 : MonoBehaviour
         //RaycastGround(nextPostionN, groundDirN, out RaycastHit groundHitN);
         //Debug.Log("Test old: " + targetRotation.eulerAngles + ", new: " + GetSurfaceAligningRotation(moveDirection, groundHit.normal));
 
-        var rot = Quaternion.RotateTowards(_rigidbody.rotation, targetRotation,
-            Time.fixedDeltaTime * moveSpeed * steeringSpeed * surfaceAlignCoefficient);
-        _rigidbody.MoveRotation(rot);
-        //_rigidbody.MoveRotation(targetRotation);
+        //var rot = Quaternion.RotateTowards(_rigidbody.rotation, targetRotation,
+        //    Time.fixedDeltaTime * moveSpeed * steeringSpeed * surfaceAlignCoefficient);
+        //_rigidbody.MoveRotation(rot);
+        _rigidbody.MoveRotation(targetRotation);
 
         //var prevPart = transform;
+
+
         if (bodyParts != null)
             foreach (var body in bodyParts)
             {
+                var rb = body.GetComponent<Rigidbody>();
                 var dist = Vector3.Distance(body.position, nextPostion);
                 //var t = Time.fixedDeltaTime * moveSpeed /* dist*/ / (1.7f * moveSpeed) /*mindistance*/;
                 //var t = moveSpeed / (1.7f * moveSpeed * slerpCoefficient);
@@ -240,9 +265,14 @@ public class SnakeMovement2 : MonoBehaviour
                 if (t > 0f)
                 {
                     var bodyPos = Vector3.Slerp(body.position, nextPostion, t);
-                    //var bodyRot = Quaternion.Lerp(body.transform.rotation, rot, t);
-                    var rb = body.GetComponent<Rigidbody>();
-                    rb.MovePosition(bodyPos);
+                    var moveDir = bodyPos - body.position;
+                    if (moveDir != Vector3.zero)
+                    {
+                        rb.MovePosition(bodyPos);
+                        rb.MoveRotation(Quaternion.LookRotation(moveDir, body.up));
+                    }
+                    else
+                        Debug.Log("Zero");
 
                     nextPostion = bodyPos;
                 }
@@ -251,6 +281,12 @@ public class SnakeMovement2 : MonoBehaviour
                     nextPostion = body.position;
                     Debug.Log("Skip");
                 }
+
+                //var bodyRot = Quaternion.RotateTowards(body.rotation, targetRotation,
+                //    Time.fixedDeltaTime * moveSpeed * bodyPartsAngularSpeed);
+                //rb.MoveRotation(bodyRot);
+                //targetRotation = bodyRot;
+
                 //var (tempPosition, tempRotation) = (body.position, body.rotation);
                 //body.MovePosition(bodyNextPos);
                 //body.MoveRotation(bodyNextRot);
@@ -382,7 +418,7 @@ public class SnakeMovement2 : MonoBehaviour
         #endregion
     }
 
-    private Vector3 SteerByInput(Vector3 forward, Vector3 input)
+    private (bool, Vector3) SteerByInput(Vector3 forward, Vector3 input)
     {
         if (input != Vector3.zero)
         {
@@ -391,11 +427,11 @@ public class SnakeMovement2 : MonoBehaviour
             var angle = Vector3.Angle(forward, projectedInput);
             if (angle > inputAccuracy)
             {
-                forward = Vector3.RotateTowards(forward, projectedInput.normalized,
-                    Time.fixedDeltaTime * steeringSpeed, 0f);
+                return (true, Vector3.RotateTowards(forward, projectedInput.normalized,
+                    Time.fixedDeltaTime * steeringSpeed, 0f));
             }
         }
-        return forward;
+        return (false, forward);
     }
 
     private (bool success, Vector3 nextPostion, Vector3 moveDirection, Vector3 closestGround) FindNextPostion(
@@ -524,18 +560,18 @@ public class SnakeMovement2 : MonoBehaviour
     //private Vector3 GetHeightMargin(Vector3 centerDirection)
     //    => -centerDirection * _snakeHalfHeight;
 
-    private (bool success, Quaternion rotation) GetSurfaceAligningRotation(
+    private (bool success, Quaternion rotation) AlignToGroundNormal(
         Vector3 forward, Vector3 position, Vector3 surfacePoint)
     {
         var surfaceDir = (surfacePoint - position).normalized;
         if (!RaycastGround(position, surfaceDir, out RaycastHit surfaceHit))
             return (false, default);
 
-        return (true, GetSurfaceAligningRotation(forward, surfaceHit.normal));
+        return (true, AlignToGroundNormal(forward, surfaceHit.normal));
     }
 
-    private Quaternion GetSurfaceAligningRotation(Vector3 forward, Vector3 surfaceNormal)
-        => Quaternion.LookRotation(forward, surfaceNormal);
+    private Quaternion AlignToGroundNormal(Vector3 forward, Vector3 groundNormal)
+        => Quaternion.LookRotation(forward, groundNormal);
 
     //private Quaternion GetSurfaceAligninigRotation(Vector3 surfaceNormal)
         //=> Quaternion.FromToRotation(transform.up, surfaceNormal);
