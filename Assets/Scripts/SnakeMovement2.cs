@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
@@ -23,6 +24,8 @@ public class SnakeMovement2 : MonoBehaviour
     [SerializeField] float inputAccuracy = 2f;
     [Tooltip("Coefficient to calculate angular speed of aligning to surface normal depending on move speed")]
     [SerializeField] float groundNormalAlignSpeed = 10f;
+    [SerializeField] float bodySegmentsPadding = 0f;
+    [SerializeField] float surfaceSmoothingPercent = 10f;
     [SerializeField] float slerpCoefficient = 1f;
     [SerializeField] float bodyPartsAngularSpeed = 1f;
     [SerializeField] SnakeController snakeController;
@@ -57,7 +60,7 @@ public class SnakeMovement2 : MonoBehaviour
     {
         //_headHalfLength = _collider.size.z / 2f;
         _snakeHalfHeight = _collider.size.y / 2f;
-        _surfaceSmoothing = _snakeHalfHeight * 0.2f;
+        _surfaceSmoothing = _collider.size.y * surfaceSmoothingPercent / 100f;
 
         _hits = new RaycastHit[10];
         //Debug.Log("Before " + transform.position);
@@ -84,9 +87,12 @@ public class SnakeMovement2 : MonoBehaviour
                 //Debug.Log(i.ToString());
                 //Debug.Log("fwd: " + prevPart.forward);
                 //Debug.Log("pos: " + prevPart.position);
+                var prevHalfLength = prevPart.GetComponent<BoxCollider>().size.z / 2f;
+                var currHalfLength = bodyParts[i].GetComponent<BoxCollider>().size.z / 2f;
+
                 var (positionSuccess, position, direction, closestGround) = FindNextPostion(
                     prevPart.transform.position,
-                    1.7f,
+                    prevHalfLength + currHalfLength + bodySegmentsPadding,
                     -prevPart.forward
                 );
 
@@ -105,8 +111,8 @@ public class SnakeMovement2 : MonoBehaviour
                     return;
                 }
 
-                bodyParts[i].transform.position = position;
-                bodyParts[i].transform.rotation = targetRotation;
+                bodyParts[i].transform.SetPositionAndRotation(position, 
+                    targetRotation);
                 prevPart = bodyParts[i].transform;
             }
 
@@ -125,6 +131,20 @@ public class SnakeMovement2 : MonoBehaviour
             Debug.LogWarning("Apple not found on start!");
 
     }
+
+    //private void Update()
+    //{
+    //    var halfLength = _collider.size.z / 2f;
+    //    DrawSphere(transform.position + halfLength * transform.forward, 0.2f, Color.red);
+    //    DrawSphere(transform.position + halfLength * -transform.forward, 0.2f, Color.red);
+
+    //    for (int i = 0; i < bodyParts.Length; i++)
+    //    {
+    //        halfLength = bodyParts[i].GetComponent<BoxCollider>().size.z / 2f;
+    //        DrawSphere(bodyParts[i].position + halfLength * bodyParts[i].forward, 0.2f, Color.red);
+    //        DrawSphere(bodyParts[i].position + halfLength * -bodyParts[i].forward, 0.2f, Color.red);
+    //    }
+    //}
 
     private void FixedUpdate()
     {
@@ -161,10 +181,10 @@ public class SnakeMovement2 : MonoBehaviour
             steeredForward = transform.forward;
         }
 
-        //var moveDistance = moveSpeed * Time.fixedDeltaTime;
+        var moveDistance = moveSpeed * Time.fixedDeltaTime;
         var (nextPostionFound, nextPostion, moveDirection, closestGround) = FindNextPostion(
             transform.position,
-            moveSpeed * Time.fixedDeltaTime,
+            moveDistance,
             steeredForward
             //SteerByInput(transform.forward, snakeController.Input)
         );
@@ -255,32 +275,154 @@ public class SnakeMovement2 : MonoBehaviour
 
 
         if (bodyParts != null)
+        {
+            var prevSegmentHalfLength = _collider.size.z / 2f;
+            var prevSegmentFuturePos = nextPostion;
+            var prevSegmentFutureFwd = moveDirection;
+
             foreach (var body in bodyParts)
             {
                 var rb = body.GetComponent<Rigidbody>();
-                var dist = Vector3.Distance(body.position, nextPostion);
-                //var t = Time.fixedDeltaTime * moveSpeed /* dist*/ / (1.7f * moveSpeed) /*mindistance*/;
-                //var t = moveSpeed / (1.7f * moveSpeed * slerpCoefficient);
-                var t = (dist - 1.7f) / dist;
-                if (t > 0f)
+                var halfLength = body.GetComponent<BoxCollider>().size.z / 2f;
+                var padding = halfLength + prevSegmentHalfLength + bodySegmentsPadding;
+                var actualDistance = Vector3.Distance(body.position, prevSegmentFuturePos);
+                var expectedSlerpDistance = moveDistance + padding;
+                Vector3 slerpPoint = default;
+                float slerpT = 0f;
+
+                //var slerpSimple = true;
+
+                //if (actualDistance >= expectedSlerpDistance - Mathf.Epsilon)
+                ////if (Vector3.Dot(body.forward, prevSegmentFutureFwd) > 0f)
+                //{
+                //    slerpPoint = prevSegmentFuturePos;
+                //    slerpT = (actualDistance - padding) / actualDistance;
+                //    Debug.Log("NoSin");
+                //}
+                if (actualDistance < expectedSlerpDistance - Mathf.Epsilon)
                 {
-                    var bodyPos = Vector3.Slerp(body.position, nextPostion, t);
-                    var moveDir = bodyPos - body.position;
-                    if (moveDir != Vector3.zero)
+                    var prevSegmentFutureBwd = -prevSegmentFutureFwd;
+                    var prevSegmentAngle = Vector3.Angle(prevSegmentFuturePos - body.position, prevSegmentFutureBwd);
+                    var prevSegmentAngleSin = Mathf.Sin(prevSegmentAngle * Mathf.Deg2Rad);
+                    //if (prevSegmentAngleSin <= Mathf.Epsilon)
+                    //if (prevSegmentAngle > 180f - Mathf.Epsilon)
+                    //{
+                    //    slerpPoint = prevSegmentFuturePos;
+                    //    slerpT = (actualDistance - padding) / actualDistance;
+                    //    Debug.Log("Sin prevSegmentAngle negative");
+                    //}
+                    if (prevSegmentAngleSin > Mathf.Epsilon)
                     {
-                        rb.MovePosition(bodyPos);
-                        rb.MoveRotation(Quaternion.LookRotation(moveDir, body.up));
+                        //var prevSegmentAngleSin = Mathf.Sin(prevSegmentAngle  * Mathf.Deg2Rad);
+                        var plainMovementAngleSin = actualDistance * prevSegmentAngleSin / expectedSlerpDistance;
+                        if (plainMovementAngleSin <= 0f)
+                            Debug.LogWarning("Sin plainMovementAngleSin negative");
+                        var currSegmentAngleSin = Mathf.Sin(
+                            (180f - prevSegmentAngle - Mathf.Asin(plainMovementAngleSin) * Mathf.Rad2Deg) * Mathf.Deg2Rad);
+                        //if (currSegmentAngleSin <= Mathf.Epsilon)
+                        //{
+                        //    slerpPoint = prevSegmentFuturePos;
+                        //    slerpT = (actualDistance - padding) / actualDistance;
+                        //    Debug.Log($"Sin currSegmentAngleSin negative");
+                        //    //Debug.Log($"Sin currSegmentAngleSin negative sum: {180f - prevSegmentAngle - Mathf.Asin(plainMovementAngleSin) * Mathf.Rad2Deg} prev: {prevSegmentAngle} plain: {Mathf.Asin(plainMovementAngleSin) * Mathf.Rad2Deg}");
+                        //}
+                        if (currSegmentAngleSin > Mathf.Epsilon)
+                        {
+                            slerpPoint = prevSegmentFuturePos + prevSegmentFutureBwd *
+                                (actualDistance * currSegmentAngleSin / plainMovementAngleSin);
+                            slerpT = moveDistance / expectedSlerpDistance;
+                            Debug.Log("Sin");
+                        }
+                        else
+                            Debug.Log($"Sin currSegmentAngleSin negative");
                     }
                     else
-                        Debug.Log("Zero");
+                        Debug.Log("Sin prevSegmentAngle negative");
+                }
 
-                    nextPostion = bodyPos;
+                if (slerpT < Mathf.Epsilon)
+                {
+                    slerpPoint = prevSegmentFuturePos;
+                    slerpT = (actualDistance - padding) / actualDistance;
+                    Debug.Log("NoSin");
+                }
+
+                //var nextSlerpPos = Vector3.Dot(body.forward, moveDirection) > 0f
+                //    ? nextPostion 
+                //    : nextPostion - moveDirection * (halfLength + prevSegmentHalfLength + bodySegmentsPadding);
+
+                //var t = Time.fixedDeltaTime * moveSpeed /* dist*/ / (1.7f * moveSpeed) /*mindistance*/;
+                //var t = moveSpeed / (1.7f * moveSpeed * slerpCoefficient);
+                //var t = (slerpDistance - padding) / slerpDistance;
+                if (slerpT > 0f)
+                {
+                    var bodyPos = Vector3.Slerp(body.position, slerpPoint, slerpT);
+                    var futureFwd = (prevSegmentFuturePos - bodyPos).normalized;
+                    //rb.MoveRotation(Quaternion.LookRotation(futureFwd, -GetGravityDirection(bodyPos)));
+                    //var rotation = ValidatePosition(bodyPos, out Vector3 bodyGround) switch
+                    //{
+                    //    ValidatePositionResult.Success or ValidatePositionResult.GroundTooClose
+                    //        => AlignToGroundNormal(futureFwd, bodyPos, bodyGround),
+                    //    ValidatePositionResult.GroundNotFound
+                    //        => AlignToGroundNormal(futureFwd,)
+                    //};
+                    var bodyRot = Quaternion.LookRotation(futureFwd, -GetGravityDirection(bodyPos));
+
+                    Quaternion groundRot = default;
+                    var cg = CheckGround(bodyPos, out Vector3 bodyGround, body.GetComponent<BoxCollider>().size.y * 0.35f);
+                    Debug.Log("Cg: " + cg);
+                    switch (cg)
+                    {
+                        case CheckGroundResult.Success:
+                        case CheckGroundResult.GroundTooClose:
+                            var (success, rot) = AlignToGroundNormal(futureFwd, bodyPos, bodyGround);
+                            if (success)
+                                groundRot = rot;
+                            else
+                                Debug.LogWarning("Can't align body segment to ground normal");
+                            break;
+                        case CheckGroundResult.GroundNotFound:
+                            if (RaycastGround(bodyPos, GetGravityDirection(bodyPos), out RaycastHit hit))
+                                groundRot = AlignToGroundNormal(futureFwd, hit.normal);
+                            else
+                                Debug.LogWarning("Can't find ground for body segment");
+                            break;
+                    }
+
+                    if (!groundRot.Equals(default))
+                    {
+                        bodyRot = Quaternion.RotateTowards(
+                            bodyRot,
+                            groundRot,
+                            Time.fixedDeltaTime * moveSpeed * groundNormalAlignSpeed);
+                        Debug.Log("Align to ground");
+                    }
+                    else
+                        Debug.Log("Skip align");
+
+                    rb.MovePosition(bodyPos);
+                    rb.MoveRotation(bodyRot);
+
+                    //var moveDir = bodyPos - body.position;
+                    //if (moveDir != Vector3.zero)
+                    //{
+                    //    rb.MovePosition(bodyPos);
+                    //    rb.MoveRotation(Quaternion.LookRotation(moveDir, body.up));
+                    //}
+                    //else
+                    //    Debug.Log("Zero");
+
+                    prevSegmentFuturePos = bodyPos;
+                    prevSegmentFutureFwd = futureFwd;
                 }
                 else
                 {
-                    nextPostion = body.position;
-                    Debug.Log("Skip");
+                    prevSegmentFuturePos = body.position;
+                    prevSegmentFutureFwd = body.forward;
+                    Debug.LogWarning("Skip");
                 }
+
+                prevSegmentHalfLength = halfLength;
 
                 //var bodyRot = Quaternion.RotateTowards(body.rotation, targetRotation,
                 //    Time.fixedDeltaTime * moveSpeed * bodyPartsAngularSpeed);
@@ -293,6 +435,74 @@ public class SnakeMovement2 : MonoBehaviour
                 //bodyNextPos = tempPosition;
                 //bodyNextRot = tempRotation;
             }
+        }
+
+        #region commented
+
+        //if (bodyParts != null)
+        //{
+        //    var prevSegmentFuturePos = nextPostion;
+        //    var prevSegmentFutureFwd = moveDirection;
+        //    var prevSegmentHalfLength = _collider.size.z / 2f;
+
+        //    foreach (var body in bodyParts)
+        //    {
+        //        var rb = body.GetComponent<Rigidbody>();
+        //        var prevSegmentJoint = prevSegmentFuturePos - prevSegmentHalfLength * prevSegmentFutureFwd;
+        //        DrawSphere(prevSegmentJoint, 0.2f, Color.red);
+        //        var halfLength = body.GetComponent<BoxCollider>().size.z / 2f;
+        //        var joint = body.position + halfLength * body.forward;
+        //        DrawSphere(joint, 0.2f, Color.red);
+        //        var dist = Vector3.Distance(joint, prevSegmentJoint);
+        //        Debug.Log("dist " + dist);
+        //        //var t = Time.fixedDeltaTime * moveSpeed /* dist*/ / (1.7f * moveSpeed) /*mindistance*/;
+        //        //var t = moveSpeed / (1.7f * moveSpeed * slerpCoefficient);
+        //        var t = (dist - bodySegmentsPadding) / dist;
+        //        if (t > 0f)
+        //        {
+        //            var futureJoint = Vector3.Slerp(joint, prevSegmentJoint, t);
+        //            DrawSphere(futureJoint, 0.4f, Color.blue);
+        //            //var currSegmentNextPos = Vector3.Slerp(body.position, prevSegmentFuturePos, t);
+        //            var moveDir = futureJoint - joint;
+        //            Debug.DrawRay(body.position, moveDir);
+        //            if (moveDir != Vector3.zero)
+        //            {
+        //                var nextPos = futureJoint - halfLength * moveDir;
+        //                rb.MovePosition(nextPos);
+        //                //rb.MoveRotation(Quaternion.LookRotation(moveDir, body.up));
+        //                prevSegmentFuturePos = nextPos;
+        //                prevSegmentFutureFwd = moveDir;
+        //            }
+        //            else
+        //            {
+        //                prevSegmentFuturePos = body.position;
+        //                prevSegmentFutureFwd = body.forward;
+        //                Debug.Log("Zero");
+        //            }
+        //        }
+        //        else
+        //        {
+        //            prevSegmentFuturePos = body.position;
+        //            prevSegmentFutureFwd = body.forward;
+        //            Debug.Log("Skip");
+        //        }
+
+        //        prevSegmentHalfLength = halfLength;
+
+        //        //var bodyRot = Quaternion.RotateTowards(body.rotation, targetRotation,
+        //        //    Time.fixedDeltaTime * moveSpeed * bodyPartsAngularSpeed);
+        //        //rb.MoveRotation(bodyRot);
+        //        //targetRotation = bodyRot;
+
+        //        //var (tempPosition, tempRotation) = (body.position, body.rotation);
+        //        //body.MovePosition(bodyNextPos);
+        //        //body.MoveRotation(bodyNextRot);
+        //        //bodyNextPos = tempPosition;
+        //        //bodyNextRot = tempRotation;
+        //    }
+        //}
+
+        #endregion
 
         #region Commented
 
@@ -439,11 +649,11 @@ public class SnakeMovement2 : MonoBehaviour
     {
         var moveDirection = initialDirection;
         var nextPostion = GetPotentialPosition(currentPosition, moveDistance, moveDirection);
-        var validatePosition = ValidatePosition(nextPostion,
-            out Vector3 closestGround);
+        var validatePosition = CheckGround(nextPostion,
+            out Vector3 closestGround, _surfaceSmoothing);
 
         //rotate move direction upwards or downwards
-        if (validatePosition != ValidatePositionResult.Success)
+        if (validatePosition != CheckGroundResult.Success)
         {
             const int MAX_ATTEMTS = 90;
             const float ROTATION_STEP = 1f * Mathf.Deg2Rad;
@@ -451,9 +661,9 @@ public class SnakeMovement2 : MonoBehaviour
             var gravityDir = GetGravityDirection(currentPosition);
             var verticalDelta = validatePosition switch
             {
-                ValidatePositionResult.InsideGround or ValidatePositionResult.GroundTooClose
+                CheckGroundResult.InsideGround or CheckGroundResult.GroundTooClose
                     => -ROTATION_STEP,  //"climb a hill"
-                ValidatePositionResult.GroundNotFound
+                CheckGroundResult.GroundNotFound
                     => ROTATION_STEP,   //"go down the hill"
                 _ => throw new System.InvalidOperationException("Can't process ValidateDirectionResult!")
             };
@@ -462,46 +672,46 @@ public class SnakeMovement2 : MonoBehaviour
             {
                 moveDirection = Vector3.RotateTowards(moveDirection, gravityDir, verticalDelta, 0f);
                 nextPostion = GetPotentialPosition(currentPosition, moveDistance, moveDirection);
-                validatePosition = ValidatePosition(nextPostion, out closestGround);
+                validatePosition = CheckGround(nextPostion, out closestGround, _surfaceSmoothing);
                 //Debug.Log("Validate: " + validatePosition);
-                if (validatePosition == ValidatePositionResult.Success)
+                if (validatePosition == CheckGroundResult.Success)
                     break;
             }
         }
 
-        if (validatePosition != ValidatePositionResult.Success)
+        if (validatePosition != CheckGroundResult.Success)
             return default;
 
         return (true, nextPostion, moveDirection, closestGround);
     }
 
-    private ValidatePositionResult ValidatePosition(Vector3 postion, out Vector3 closestGround)
+    private CheckGroundResult CheckGround(Vector3 position, out Vector3 closestGround, float surfaceSmoothing)
     {
-        closestGround = postion;
+        closestGround = position;
 
-        var groundCheck = Physics.OverlapSphereNonAlloc(postion, _snakeHalfHeight + _surfaceSmoothing,
+        var groundCheck = Physics.OverlapSphereNonAlloc(position, _snakeHalfHeight + surfaceSmoothing,
             _groundCheckColliders, GROUND_LAYER);
 
         if (groundCheck > 0)
         {
             for (int i = 0; i < groundCheck; i++)
             {
-                closestGround = _groundCheckColliders[i].ClosestPoint(postion);
+                closestGround = _groundCheckColliders[i].ClosestPoint(position);
 
-                if (postion.Equals(closestGround))
-                    return ValidatePositionResult.InsideGround;
+                if (position.Equals(closestGround))
+                    return CheckGroundResult.InsideGround;
 
-                if (Vector3.Distance(closestGround, postion) < _snakeHalfHeight - _surfaceSmoothing)
-                    return ValidatePositionResult.GroundTooClose;
+                if (Vector3.Distance(closestGround, position) < _snakeHalfHeight - surfaceSmoothing)
+                    return CheckGroundResult.GroundTooClose;
             }
 
-            return ValidatePositionResult.Success;
+            return CheckGroundResult.Success;
         }
         
-        return ValidatePositionResult.GroundNotFound;
+        return CheckGroundResult.GroundNotFound;
     }
 
-    private enum ValidatePositionResult
+    private enum CheckGroundResult
     {
         Success,
         GroundNotFound,
