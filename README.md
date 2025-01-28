@@ -3,4 +3,4 @@
 - Алгоритм изгиба змейки на основе Vector3.Slerp.
 - Движение камеры по орбите вокруг яблока.
 
-Геймплей: https://kimoril.itch.io/apple-snake
+Геймплей и билд: https://kimoril.itch.io/apple-snake
