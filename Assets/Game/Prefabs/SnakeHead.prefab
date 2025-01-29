@@ -97,6 +97,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   bodySegmentPrefab: {fileID: 1473384666245593619, guid: 34d66b5e36c4d6b459ddf32217ef0076, type: 3}
+  tailPrefab: {fileID: 8871260844587017769, guid: 610e8c68cc90fdd418910818da5a8282, type: 3}
   initialSegments: 6
   bodySegmentsPadding: 0
   followCamera: {fileID: 0}

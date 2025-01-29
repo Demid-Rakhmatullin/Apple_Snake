@@ -277,7 +277,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!135 &290685560
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1082,7 +1082,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!135 &1179532375
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1697,6 +1697,10 @@ PrefabInstance:
     - target: {fileID: 3429947194669197355, guid: e3266e9f4a354554d8175a4d91e3727a, type: 3}
       propertyPath: m_Name
       value: SnakeTop
+      objectReference: {fileID: 0}
+    - target: {fileID: 3429947194669197355, guid: e3266e9f4a354554d8175a4d91e3727a, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 4630760527369579940, guid: e3266e9f4a354554d8175a4d91e3727a, type: 3}
       propertyPath: surfaceSmoothingPercent

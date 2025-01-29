@@ -16,7 +16,7 @@ public class SnakeSegment : MonoBehaviour
     public float HalfHeight { get; private set; }
     public float HalfLength { get; private set; }
 
-    private void Awake()
+    public void Init(Transform gravityCenter)
     {
         _collider = GetComponent<BoxCollider>();
         Rigidbody = GetComponent<Rigidbody>();
@@ -27,10 +27,7 @@ public class SnakeSegment : MonoBehaviour
         var surfaceSmoothing = _collider.size.y * surfaceSmoothingPercent / 100f;
         _surfaceSmoothingOut = HalfHeight + surfaceSmoothing;
         _surfaceSmoothingIn = HalfHeight - surfaceSmoothing;
-    }
 
-    public void Init(Transform gravityCenter)
-    {
         _gravityCenter = gravityCenter;
     }
 

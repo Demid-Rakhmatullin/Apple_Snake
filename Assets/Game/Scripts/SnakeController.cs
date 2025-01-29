@@ -6,6 +6,7 @@ using static PhysicsHelpers;
 public class SnakeController : MonoBehaviour
 {
     [SerializeField] GameObject bodySegmentPrefab;
+    [SerializeField] GameObject tailPrefab;
     [SerializeField] int initialSegments = 6;
     [SerializeField] float bodySegmentsPadding = 0f;
     [SerializeField] SnakeFollowCamera followCamera;
@@ -223,36 +224,49 @@ public class SnakeController : MonoBehaviour
         var prevSegment = _head;
         for (int i = 0; i < initialSegments; i++)
         {
-            var go = Instantiate(bodySegmentPrefab, prevSegment.transform.position, 
-                prevSegment.transform.rotation, _head.transform);
-            var currSegment = go.GetComponent<SnakeSegment>();
-            currSegment.Init(gravityCenter);
+            var (success, newSegment) = CreateSegment(bodySegmentPrefab, prevSegment);
+            if (!success)
+                break;
 
-            var (positionSuccess, position, direction, closestGround) = currSegment.FindNextPosition(
-                _groundCheckColliders,
-                prevSegment.HalfLength + currSegment.HalfLength + bodySegmentsPadding,
-                -prevSegment.transform.forward
-            );
-
-            if (!positionSuccess)
-            {
-                Debug.LogWarning("Can't position body segment on start");
-                return;
-            }
-
-            var (alignSuccess, targetRotation) = AlignToGroundNormal(
-                -direction, position, closestGround);
-
-            if (!alignSuccess)
-            {
-                Debug.LogWarning("Can't find ground for body segment on start");
-                return;
-            }
-
-            currSegment.transform.SetPositionAndRotation(position,
-                targetRotation);
-            _body.AddLast(currSegment);
-            prevSegment = currSegment;
+            _body.AddLast(newSegment);
+            prevSegment = newSegment;
         }
+
+        var (tailSuccess, tail) = CreateSegment(tailPrefab, prevSegment);
+        if (tailSuccess)
+            _body.AddLast(tail);
+    }
+
+    private (bool, SnakeSegment) CreateSegment(GameObject prefab, SnakeSegment prevSegment)
+    {
+        var go = Instantiate(prefab, prevSegment.transform.position,
+               prevSegment.transform.rotation, _head.transform);
+        var newSegment = go.GetComponent<SnakeSegment>();
+        newSegment.Init(gravityCenter);
+        
+        var (positionSuccess, position, direction, closestGround) = newSegment.FindNextPosition(
+            _groundCheckColliders,
+            prevSegment.HalfLength + newSegment.HalfLength + bodySegmentsPadding,
+            -prevSegment.transform.forward
+        );
+
+        if (!positionSuccess)
+        {
+            Debug.LogWarning("Can't position body segment on start");
+            return default;
+        }
+
+        var (alignSuccess, targetRotation) = AlignToGroundNormal(
+            -direction, position, closestGround);
+
+        if (!alignSuccess)
+        {
+            Debug.LogWarning("Can't find ground for body segment on start");
+            return default;
+        }
+
+        newSegment.transform.SetPositionAndRotation(position,
+            targetRotation);
+        return (true, newSegment);
     }
 }
